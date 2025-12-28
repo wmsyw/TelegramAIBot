@@ -30,10 +30,7 @@ RUN npm ci --only=production && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 
 # Create data directory
-RUN mkdir -p /app/data && chown -R node:node /app
-
-# Use non-root user
-USER node
+RUN mkdir -p /app/data
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
