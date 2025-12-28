@@ -10,10 +10,9 @@ export async function handleLive(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
   if (!userId) return;
 
-  // Check for Gemini provider
-  const geminiProvider = db.getProvider(userId, 'gemini');
-  if (!geminiProvider) {
-    await ctx.reply('❌ 请先配置 Gemini API Key：\n<code>/config add gemini YOUR_API_KEY https://generativelanguage.googleapis.com</code>', { parse_mode: 'HTML' });
+  const liveProvider = db.getProvider(userId, 'gemini-live');
+  if (!liveProvider) {
+    await ctx.reply('❌ 请先配置 Gemini Live API Key：\n<code>/config add gemini-live YOUR_API_KEY https://generativelanguage.googleapis.com</code>', { parse_mode: 'HTML' });
     return;
   }
 
@@ -29,7 +28,7 @@ export async function handleLive(ctx: Context): Promise<void> {
     await ctx.reply('🔄 正在连接 Gemini Live...');
 
     const session = await createLiveSession(userId, {
-      apiKey: geminiProvider.apiKey,
+      apiKey: liveProvider.apiKey,
       voiceName: voiceId
     });
 

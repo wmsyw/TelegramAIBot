@@ -10,12 +10,6 @@ const envSchema = z.object({
   ),
   DATA_DIR: z.string().default('./data'),
   WHITELIST_MODE: z.enum(['allow', 'deny']).default('allow'),
-  OPENAI_API_KEY: z.string().optional(),
-  OPENAI_BASE_URL: z.string().default('https://api.openai.com'),
-  GEMINI_API_KEY: z.string().optional(),
-  GEMINI_BASE_URL: z.string().default('https://generativelanguage.googleapis.com'),
-  CLAUDE_API_KEY: z.string().optional(),
-  CLAUDE_BASE_URL: z.string().default('https://api.anthropic.com'),
 });
 
 const parsed = envSchema.safeParse(process.env);

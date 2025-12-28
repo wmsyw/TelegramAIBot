@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
 import { env } from '../config/env.js';
+import { encrypt, decrypt } from '../utils/crypto.js';
 
 export type SessionMode = 'idle' | 'chat' | 'search' | 'image' | 'tts' | 'audio' | 'live';
 
@@ -187,20 +188,32 @@ class SQLiteStore {
   // ========== Providers ==========
   getProvider(userId: number, name: string): Provider | null {
     const row = this.db.prepare('SELECT * FROM providers WHERE user_id = ? AND name = ?').get(userId, name) as any;
-    return row ? { name: row.name, apiKey: row.api_key, baseUrl: row.base_url } : null;
+    if (!row) return null;
+    try {
+      return { name: row.name, apiKey: decrypt(row.api_key), baseUrl: row.base_url };
+    } catch {
+      return { name: row.name, apiKey: row.api_key, baseUrl: row.base_url };
+    }
   }
 
   listProviders(userId: number): Provider[] {
     const rows = this.db.prepare('SELECT * FROM providers WHERE user_id = ?').all(userId) as any[];
-    return rows.map(r => ({ name: r.name, apiKey: r.api_key, baseUrl: r.base_url }));
+    return rows.map(r => {
+      try {
+        return { name: r.name, apiKey: decrypt(r.api_key), baseUrl: r.base_url };
+      } catch {
+        return { name: r.name, apiKey: r.api_key, baseUrl: r.base_url };
+      }
+    });
   }
 
   setProvider(userId: number, name: string, apiKey: string, baseUrl: string): void {
     this.getUser(userId);
+    const encryptedKey = encrypt(apiKey);
     this.db.prepare(`
       INSERT INTO providers (user_id, name, api_key, base_url) VALUES (?, ?, ?, ?)
       ON CONFLICT(user_id, name) DO UPDATE SET api_key = excluded.api_key, base_url = excluded.base_url
-    `).run(userId, name, apiKey, baseUrl);
+    `).run(userId, name, encryptedKey, baseUrl);
   }
 
   deleteProvider(userId: number, name: string): boolean {

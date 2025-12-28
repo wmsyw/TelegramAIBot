@@ -1,6 +1,7 @@
 import { Context } from 'grammy';
 import { db } from '../storage/sqlite.js';
 import { html, shortenUrlForDisplay, trimBase, sanitizeUrl, stripCommand } from '../utils/text.js';
+import { maskApiKey } from '../utils/crypto.js';
 
 export async function handleConfig(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
@@ -24,7 +25,8 @@ export async function handleConfig(ctx: Context): Promise<void> {
     const provList = providers.length
       ? providers.map(v => {
           const display = shortenUrlForDisplay(v.baseUrl);
-          return `• <b>${html(v.name)}</b> - key:${v.apiKey ? '✅' : '❌'} base:<a href="${sanitizeUrl(v.baseUrl)}">${html(display)}</a>`;
+          const maskedKey = maskApiKey(v.apiKey);
+          return `• <b>${html(v.name)}</b> - key:<code>${html(maskedKey)}</code> base:<a href="${sanitizeUrl(v.baseUrl)}">${html(display)}</a>`;
         }).join('\n')
       : '(空)';
 
@@ -132,7 +134,8 @@ ${provList}`;
     const list = providers.length
       ? providers.map(v => {
           const display = shortenUrlForDisplay(v.baseUrl);
-          return `• <b>${html(v.name)}</b> - key:${v.apiKey ? '✅' : '❌'} base:<a href="${sanitizeUrl(v.baseUrl)}">${html(display)}</a>`;
+          const maskedKey = maskApiKey(v.apiKey);
+          return `• <b>${html(v.name)}</b> - key:<code>${html(maskedKey)}</code> base:<a href="${sanitizeUrl(v.baseUrl)}">${html(display)}</a>`;
         }).join('\n')
       : '(空)';
 
