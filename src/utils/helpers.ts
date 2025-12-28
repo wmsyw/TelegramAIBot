@@ -98,21 +98,9 @@ export function escapeAndFormatForTelegram(raw: string): string {
 }
 
 export function formatQA(qRaw: string, aRaw: string, collapse = false): string {
-  const expandAttr = collapse ? ' expandable' : '';
-  const qEsc = escapeAndFormatForTelegram(qRaw);
-  const aEsc = escapeAndFormatForTelegram(aRaw);
-  const Q = `<b>Q:</b>\n<blockquote${expandAttr}>${qEsc}</blockquote>`;
-  const A = `<b>A:</b>\n<blockquote${expandAttr}>${aEsc}</blockquote>`;
-  return `${Q}\n\n${A}`;
+  return escapeAndFormatForTelegram(aRaw);
 }
 
 export function footer(model: string, extra?: string): string {
-  const src = model.toLowerCase().includes('claude')
-    ? 'Anthropic Claude'
-    : model.toLowerCase().includes('gemini')
-      ? 'Google Gemini'
-      : 'OpenAI';
-  const htmlEsc = (t: string): string =>
-    t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  return `\n\n<i>Powered by ${htmlEsc(src)}${extra ? ' ' + htmlEsc(extra) : ''}</i>`;
+  return '';
 }

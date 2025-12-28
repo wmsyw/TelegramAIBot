@@ -1,6 +1,5 @@
 import { Context } from 'grammy';
 import { db } from '../storage/sqlite.js';
-import { closeLiveSession } from '../services/live/gemini-live.js';
 
 export async function handleCancel(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
@@ -14,11 +13,6 @@ export async function handleCancel(ctx: Context): Promise<void> {
   }
 
   const prevMode = user.mode;
-
-  // Clean up live session if active
-  if (prevMode === 'live') {
-    closeLiveSession(userId);
-  }
 
   // Clear session messages (temporary context)
   db.clearSessionMessages(userId);

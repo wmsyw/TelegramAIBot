@@ -1,5 +1,14 @@
 import { setupBot } from './bot.js';
 
+// Prevent crashes from unhandled errors
+process.on('uncaughtException', (err) => {
+  console.error('[Bot] Uncaught exception:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Bot] Unhandled rejection:', reason);
+});
+
 async function main(): Promise<void> {
   console.info('[Bot] Starting...');
 

@@ -89,6 +89,13 @@ export function createBot(): Bot {
     const user = db.getUser(userId);
     if (user.mode === 'live') {
       await handleLiveVoice(ctx);
+      return;
+    }
+
+    // One-shot live voice: any voice message triggers live processing
+    const liveProvider = db.getProvider(userId, 'gemini-live');
+    if (liveProvider) {
+      await handleLiveVoice(ctx);
     }
   });
 
