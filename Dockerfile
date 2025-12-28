@@ -19,6 +19,9 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Install ffmpeg for audio processing
+RUN apk add --no-cache ffmpeg
+
 # Copy package files and install production dependencies
 COPY package*.json ./
 RUN npm ci --only=production && npm cache clean --force

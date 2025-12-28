@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   telegram-ai-bot:
-    image: ghcr.io/wmsyw/telegramaibot:latest
+    image: ghcr.io/wmsyw/telegram-ai-bot:latest
     container_name: telegram-ai-bot
     restart: unless-stopped
     environment:
@@ -10,12 +8,6 @@ services:
       - ADMIN_IDS=${ADMIN_IDS}
       - DATA_DIR=/app/data
       - WHITELIST_MODE=${WHITELIST_MODE:-allow}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_BASE_URL=${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com}
-      - CLAUDE_API_KEY=${CLAUDE_API_KEY:-}
-      - CLAUDE_BASE_URL=${CLAUDE_BASE_URL:-https://api.anthropic.com}
     volumes:
       - ./data:/app/data
     logging:
