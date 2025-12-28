@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   telegram-ai-bot:
-    build: .
+    image: ghcr.io/wmsyw/telegramaibot:latest
     container_name: telegram-ai-bot
     restart: unless-stopped
     environment:
