@@ -1,5 +1,4 @@
 import { setupBot } from './bot.js';
-import { store } from './storage/store.js';
 
 async function main(): Promise<void> {
   console.info('[Bot] Starting...');
@@ -11,12 +10,6 @@ async function main(): Promise<void> {
     const shutdown = async (signal: string) => {
       console.info(`[Bot] Received ${signal}, shutting down...`);
       await bot.stop();
-      try {
-        await store.write();
-        console.info('[Bot] Store saved');
-      } catch (e) {
-        console.error('[Bot] Failed to save store:', e);
-      }
       process.exit(0);
     };
 

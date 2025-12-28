@@ -1,16 +1,19 @@
 import { Bot, GrammyError, HttpError } from 'grammy';
 import { env } from './config/env.js';
-import { store } from './storage/store.js';
+import { db } from './storage/sqlite.js';
 import { authMiddleware } from './middlewares/auth.js';
 import { errorMiddleware } from './middlewares/error.js';
+import { sessionRouterMiddleware } from './middlewares/session.js';
 import { handleStart, handleHelp } from './handlers/start.js';
-import { handleChat, handleSearch } from './handlers/chat.js';
-import { handleImage } from './handlers/image.js';
-import { handleTTS, handleAudio } from './handlers/audio.js';
+import { handleChat, handleChatMessage, handleSearch, handleSearchMessage } from './handlers/chat.js';
+import { handleImage, handleImageMessage } from './handlers/image.js';
+import { handleTTS, handleTTSMessage, handleAudio, handleAudioMessage } from './handlers/audio.js';
+import { handleLive, handleLiveVoice, handleLiveText } from './handlers/live.js';
+import { handleCancel } from './handlers/cancel.js';
 import { handleConfig } from './handlers/config.js';
 import { handleModel } from './handlers/model.js';
 import { handleVoice } from './handlers/voice.js';
-import { handlePrompt, handleContext } from './handlers/prompt.js';
+import { handlePrompt } from './handlers/prompt.js';
 import { handleWhitelist } from './handlers/whitelist.js';
 
 export function createBot(): Bot {
@@ -19,6 +22,7 @@ export function createBot(): Bot {
   // Middlewares
   bot.use(errorMiddleware);
   bot.use(authMiddleware);
+  bot.use(sessionRouterMiddleware);
 
   // Commands
   bot.command('start', handleStart);
@@ -28,11 +32,12 @@ export function createBot(): Bot {
   bot.command('image', handleImage);
   bot.command('tts', handleTTS);
   bot.command('audio', handleAudio);
+  bot.command('live', handleLive);
+  bot.command('cancel', handleCancel);
   bot.command('config', handleConfig);
   bot.command('model', handleModel);
   bot.command('voice', handleVoice);
   bot.command('prompt', handlePrompt);
-  bot.command('context', handleContext);
   bot.command('whitelist', handleWhitelist);
 
   // Aliases
@@ -42,7 +47,50 @@ export function createBot(): Bot {
   bot.command('i', handleImage);
   bot.command('v', handleTTS);
   bot.command('a', handleAudio);
-  bot.command('ctx', handleContext);
+  bot.command('l', handleLive);
+
+  // Session message routing for non-command messages
+  bot.on('message:text', async (ctx) => {
+    const userId = ctx.from?.id;
+    if (!userId) return;
+
+    const user = db.getUser(userId);
+    const mode = user.mode;
+
+    if (mode === 'idle') return;
+
+    switch (mode) {
+      case 'chat':
+        await handleChatMessage(ctx);
+        break;
+      case 'search':
+        await handleSearchMessage(ctx);
+        break;
+      case 'image':
+        await handleImageMessage(ctx);
+        break;
+      case 'tts':
+        await handleTTSMessage(ctx);
+        break;
+      case 'audio':
+        await handleAudioMessage(ctx);
+        break;
+      case 'live':
+        await handleLiveText(ctx);
+        break;
+    }
+  });
+
+  // Voice message routing
+  bot.on('message:voice', async (ctx) => {
+    const userId = ctx.from?.id;
+    if (!userId) return;
+
+    const user = db.getUser(userId);
+    if (user.mode === 'live') {
+      await handleLiveVoice(ctx);
+    }
+  });
 
   // Global error handling
   bot.catch((err) => {
@@ -59,8 +107,8 @@ export function createBot(): Bot {
 
 export async function setupBot(): Promise<Bot> {
   // Initialize store
-  await store.init();
-  console.info('[Bot] Store initialized');
+  await db.init();
+  console.info('[Bot] SQLite initialized');
 
   // Create bot
   const bot = createBot();
@@ -74,10 +122,11 @@ export async function setupBot(): Promise<Bot> {
     { command: 'image', description: '生成图片' },
     { command: 'tts', description: '文本转语音' },
     { command: 'audio', description: '对话后转语音' },
+    { command: 'live', description: '实时语音对话' },
+    { command: 'cancel', description: '退出当前模式' },
     { command: 'config', description: '配置管理' },
     { command: 'model', description: '模型设置' },
     { command: 'voice', description: '音色设置' },
-    { command: 'context', description: '上下文管理' },
     { command: 'prompt', description: '模板管理' },
     { command: 'whitelist', description: '白名单管理' },
   ]);

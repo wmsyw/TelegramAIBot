@@ -1,5 +1,5 @@
 import { axiosWithRetry } from '../utils/retry.js';
-import { store } from '../storage/store.js';
+import { db } from '../storage/sqlite.js';
 import { nowISO } from '../utils/text.js';
 
 function parseTGInline(text: string): any[] {
@@ -115,8 +115,9 @@ function toNodes(text: string): string {
   return JSON.stringify(nodes);
 }
 
-async function ensureTGToken(): Promise<string> {
-  if (store.data.telegraph.token) return store.data.telegraph.token;
+async function ensureTGToken(userId: number): Promise<string> {
+  const tg = db.getTelegraph(userId);
+  if (tg.token) return tg.token;
 
   const resp = await axiosWithRetry({
     method: 'POST',
@@ -125,14 +126,14 @@ async function ensureTGToken(): Promise<string> {
   });
 
   const t = resp.data?.result?.access_token || '';
-  store.data.telegraph.token = t;
-  await store.writeSoon();
+  db.setTelegraph(userId, { token: t });
   return t;
 }
 
-export async function createTGPage(title: string, text: string): Promise<string | null> {
+export async function createTGPage(title: string, text: string, userId?: number): Promise<string | null> {
   try {
-    const token = await ensureTGToken();
+    const uid = userId || 0;
+    const token = await ensureTGToken(uid);
     if (!token) return null;
 
     const data = new URLSearchParams();
@@ -147,13 +148,7 @@ export async function createTGPage(title: string, text: string): Promise<string 
       data,
     });
 
-    const url = resp.data?.result?.url || null;
-    if (url) {
-      store.data.telegraph.posts.unshift({ title: title.slice(0, 30), url, createdAt: nowISO() });
-      store.data.telegraph.posts = store.data.telegraph.posts.slice(0, 10);
-      await store.writeSoon();
-    }
-    return url;
+    return resp.data?.result?.url || null;
   } catch (e: any) {
     console.error(`[Telegraph] Create failed: ${e?.message || e}`);
     return null;

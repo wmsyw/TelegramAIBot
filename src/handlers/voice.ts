@@ -1,24 +1,28 @@
 import { Context } from 'grammy';
-import { store } from '../storage/store.js';
+import { db } from '../storage/sqlite.js';
 import { html, stripCommand } from '../utils/text.js';
 import { GEMINI_VOICES, OPENAI_VOICES } from '../config/constants.js';
 
 export async function handleVoice(ctx: Context): Promise<void> {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
   const text = stripCommand(ctx.message?.text, 'voice');
   const args = text.split(/\s+/).filter(Boolean);
   const sub = (args[0] || '').toLowerCase();
 
-  if (!store.data.voices) store.data.voices = { gemini: 'Kore', openai: 'alloy' };
-
   if (sub === 'list' || !sub) {
+    const geminiVoice = db.getVoice(userId, 'gemini') || 'Kore';
+    const openaiVoice = db.getVoice(userId, 'openai') || 'alloy';
+
     const geminiList = GEMINI_VOICES.map((v, i) => `${i + 1}. ${v}`).join('\n');
     const openaiList = OPENAI_VOICES.map((v, i) => `${i + 1}. ${v}`).join('\n');
 
     const txt = `🎤 <b>可用音色列表</b>
 
 <b>当前配置:</b>
-Gemini: <code>${store.data.voices.gemini}</code>
-OpenAI: <code>${store.data.voices.openai}</code>
+Gemini: <code>${geminiVoice}</code>
+OpenAI: <code>${openaiVoice}</code>
 
 <b>Gemini (${GEMINI_VOICES.length}种):</b>
 <blockquote expandable>${geminiList}</blockquote>
@@ -33,7 +37,8 @@ OpenAI: <code>${store.data.voices.openai}</code>
   if (sub === 'gemini') {
     const voiceName = args[1];
     if (!voiceName) {
-      await ctx.reply(`❌ 请指定音色名称\n当前: <code>${store.data.voices.gemini}</code>`, { parse_mode: 'HTML' });
+      const current = db.getVoice(userId, 'gemini') || 'Kore';
+      await ctx.reply(`❌ 请指定音色名称\n当前: <code>${current}</code>`, { parse_mode: 'HTML' });
       return;
     }
 
@@ -42,8 +47,7 @@ OpenAI: <code>${store.data.voices.openai}</code>
       return;
     }
 
-    store.data.voices.gemini = voiceName;
-    await store.writeSoon();
+    db.setVoice(userId, 'gemini', voiceName);
     await ctx.reply(`✅ 已设置 Gemini 音色: <code>${html(voiceName)}</code>`, { parse_mode: 'HTML' });
     return;
   }
@@ -51,7 +55,8 @@ OpenAI: <code>${store.data.voices.openai}</code>
   if (sub === 'openai') {
     const voiceName = args[1];
     if (!voiceName) {
-      await ctx.reply(`❌ 请指定音色名称\n当前: <code>${store.data.voices.openai}</code>`, { parse_mode: 'HTML' });
+      const current = db.getVoice(userId, 'openai') || 'alloy';
+      await ctx.reply(`❌ 请指定音色名称\n当前: <code>${current}</code>`, { parse_mode: 'HTML' });
       return;
     }
 
@@ -60,8 +65,7 @@ OpenAI: <code>${store.data.voices.openai}</code>
       return;
     }
 
-    store.data.voices.openai = voiceName;
-    await store.writeSoon();
+    db.setVoice(userId, 'openai', voiceName);
     await ctx.reply(`✅ 已设置 OpenAI 音色: <code>${html(voiceName)}</code>`, { parse_mode: 'HTML' });
     return;
   }

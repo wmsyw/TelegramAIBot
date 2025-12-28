@@ -1,17 +1,17 @@
 import { Context } from 'grammy';
-import { store } from '../storage/store.js';
-import { tts, chat, pick, providerOf, getCompat, getCurrentVoice } from '../services/ai/router.js';
-import { applyPromptPrefix, histFor, pushHist } from '../services/ai/history.js';
+import { InputFile } from 'grammy';
+import { db } from '../storage/sqlite.js';
+import { tts, chat, getCompat } from '../services/ai/router.js';
 import { footer } from '../utils/helpers.js';
 import { html, stripCommand } from '../utils/text.js';
-import { InputFile } from 'grammy';
+import { withUserLock } from '../utils/lock.js';
 import type { ChatMessage } from '../types/ai.js';
 
 async function tryDeleteMessage(ctx: Context, messageId: number): Promise<void> {
   try {
     await ctx.api.deleteMessage(ctx.chat!.id, messageId);
   } catch {
-    // Ignore delete failures
+    // Ignore
   }
 }
 
@@ -49,23 +49,20 @@ function convertPcmToWav(raw: Buffer, mime?: string): { buf: Buffer; mime: strin
   return { buf, mime: outMime };
 }
 
-export async function handleTTS(ctx: Context): Promise<void> {
-  const text = stripCommand(ctx.message?.text, 'tts');
-  const replyText = ctx.message?.reply_to_message?.text || '';
-  const input = text || replyText;
-
-  if (!input) {
-    await ctx.reply('❌ 请输入文本');
+async function processTTS(ctx: Context, userId: number, input: string): Promise<void> {
+  const user = db.getUser(userId);
+  if (user.mode !== 'idle' && user.mode !== 'tts') {
+    await ctx.reply('❌ 请先使用 /cancel 退出当前模式');
     return;
   }
 
-  const m = pick('tts');
+  const m = db.getModel(userId, 'tts');
   if (!m) {
     await ctx.reply('❌ 未设置 tts 模型，请使用 /model tts <provider> <model>');
     return;
   }
 
-  const p = providerOf(m.provider);
+  const p = db.getProvider(userId, m.provider);
   if (!p) {
     await ctx.reply(`❌ 服务商 ${m.provider} 未配置`);
     return;
@@ -74,10 +71,12 @@ export async function handleTTS(ctx: Context): Promise<void> {
   const statusMsg = await ctx.reply('🔊 合成中...');
 
   try {
-    const compat = getCompat(m.provider, m.model);
-    const voice = getCurrentVoice(compat);
-    const finalText = applyPromptPrefix('tts', input);
-    const result = await tts(m.provider, m.model, finalText, voice);
+    const compat = getCompat(p, m.model);
+    const voiceId = db.getVoice(userId, compat) || (compat === 'gemini' ? 'Kore' : 'alloy');
+
+    const activePrompt = db.getActivePrompt(userId, 'tts');
+    const finalText = activePrompt ? `${activePrompt.content}\n\n${input}` : input;
+    const result = await tts(p, m.model, finalText, voiceId);
 
     if (!result.audio) {
       await ctx.api.editMessageText(ctx.chat!.id, statusMsg.message_id, '❌ 语音合成失败：服务无有效输出');
@@ -92,18 +91,52 @@ export async function handleTTS(ctx: Context): Promise<void> {
   }
 }
 
-export async function handleAudio(ctx: Context): Promise<void> {
-  const text = stripCommand(ctx.message?.text, 'audio');
+export async function handleTTS(ctx: Context): Promise<void> {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  const text = stripCommand(ctx.message?.text, 'tts');
   const replyText = ctx.message?.reply_to_message?.text || '';
   const input = text || replyText;
 
   if (!input) {
-    await ctx.reply('❌ 请输入内容');
+    const user = db.getUser(userId);
+    if (user.mode !== 'idle') {
+      await ctx.reply('❌ 请先使用 /cancel 退出当前模式');
+      return;
+    }
+    db.clearSessionMessages(userId);
+    db.updateUser(userId, { mode: 'tts' });
+    await ctx.reply('🔊 进入语音合成模式\n发送文本转语音\n使用 /cancel 退出');
     return;
   }
 
-  const chatModel = pick('chat');
-  const ttsModel = pick('tts');
+  await processTTS(ctx, userId, input);
+}
+
+export async function handleTTSMessage(ctx: Context): Promise<void> {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  const input = ctx.message?.text;
+  if (!input) return;
+
+  await processTTS(ctx, userId, input);
+}
+
+async function processAudio(ctx: Context, userId: number, input: string): Promise<void> {
+  await withUserLock(userId, () => doProcessAudio(ctx, userId, input));
+}
+
+async function doProcessAudio(ctx: Context, userId: number, input: string): Promise<void> {
+  const user = db.getUser(userId);
+  if (user.mode !== 'idle' && user.mode !== 'audio') {
+    await ctx.reply('❌ 请先使用 /cancel 退出当前模式');
+    return;
+  }
+
+  const chatModel = db.getModel(userId, 'chat');
+  const ttsModel = db.getModel(userId, 'tts');
 
   if (!chatModel) {
     await ctx.reply('❌ 未设置 chat 模型');
@@ -114,30 +147,35 @@ export async function handleAudio(ctx: Context): Promise<void> {
     return;
   }
 
+  const chatProvider = db.getProvider(userId, chatModel.provider);
+  const ttsProvider = db.getProvider(userId, ttsModel.provider);
+
+  if (!chatProvider) {
+    await ctx.reply(`❌ 服务商 ${chatModel.provider} 未配置`);
+    return;
+  }
+  if (!ttsProvider) {
+    await ctx.reply(`❌ 服务商 ${ttsModel.provider} 未配置`);
+    return;
+  }
+
   const statusMsg = await ctx.reply('🔄 处理中...');
-  const chatId = String(ctx.chat?.id || 'global');
 
   try {
-    const msgs: ChatMessage[] = [];
-    if (store.data.contextEnabled) {
-      const hist = histFor(chatId);
-      msgs.push(...hist.map((h) => ({ role: h.role as 'user' | 'assistant', content: h.content })));
-    }
-
+    const history = db.getSessionMessages(userId);
+    const msgs: ChatMessage[] = history.map(h => ({ role: h.role, content: h.content }));
     msgs.push({ role: 'user', content: input });
-    const result = await chat(chatModel.provider, chatModel.model, msgs);
 
-    if (store.data.contextEnabled) {
-      pushHist(chatId, 'user', input);
-      pushHist(chatId, 'assistant', result.content);
-      await store.writeSoon();
-    }
+    const result = await chat(chatProvider, chatModel.model, msgs);
+
+    db.addSessionMessage(userId, 'user', input);
+    db.addSessionMessage(userId, 'assistant', result.content);
 
     await ctx.api.editMessageText(ctx.chat!.id, statusMsg.message_id, '🔊 合成语音中...');
 
-    const compat = getCompat(ttsModel.provider, ttsModel.model);
-    const voice = getCurrentVoice(compat);
-    const ttsResult = await tts(ttsModel.provider, ttsModel.model, result.content, voice);
+    const compat = getCompat(ttsProvider, ttsModel.model);
+    const voiceId = db.getVoice(userId, compat) || (compat === 'gemini' ? 'Kore' : 'alloy');
+    const ttsResult = await tts(ttsProvider, ttsModel.model, result.content, voiceId);
 
     if (!ttsResult.audio) {
       await ctx.api.editMessageText(ctx.chat!.id, statusMsg.message_id, '❌ 语音合成失败');
@@ -150,4 +188,37 @@ export async function handleAudio(ctx: Context): Promise<void> {
   } catch (e: any) {
     await ctx.api.editMessageText(ctx.chat!.id, statusMsg.message_id, `❌ 错误：${html(e?.message || String(e))}`);
   }
+}
+
+export async function handleAudio(ctx: Context): Promise<void> {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  const text = stripCommand(ctx.message?.text, 'audio');
+  const replyText = ctx.message?.reply_to_message?.text || '';
+  const input = text || replyText;
+
+  if (!input) {
+    const user = db.getUser(userId);
+    if (user.mode !== 'idle') {
+      await ctx.reply('❌ 请先使用 /cancel 退出当前模式');
+      return;
+    }
+    db.clearSessionMessages(userId);
+    db.updateUser(userId, { mode: 'audio' });
+    await ctx.reply('🎵 进入语音对话模式\n发送消息进行对话后转语音\n使用 /cancel 退出');
+    return;
+  }
+
+  await processAudio(ctx, userId, input);
+}
+
+export async function handleAudioMessage(ctx: Context): Promise<void> {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  const input = ctx.message?.text;
+  if (!input) return;
+
+  await processAudio(ctx, userId, input);
 }

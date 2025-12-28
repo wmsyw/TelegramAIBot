@@ -1,11 +1,10 @@
 import { Context } from 'grammy';
-import { store } from '../storage/store.js';
-import { html, stripCommand } from '../utils/text.js';
-import { isAdmin } from '../middlewares/auth.js';
+import { db } from '../storage/sqlite.js';
+import { stripCommand } from '../utils/text.js';
 
 export async function handleWhitelist(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
-  if (!userId || !isAdmin(userId)) {
+  if (!userId || !db.isAdmin(userId)) {
     await ctx.reply('❌ 仅管理员可使用此命令');
     return;
   }
@@ -14,18 +13,21 @@ export async function handleWhitelist(ctx: Context): Promise<void> {
   const args = text.split(/\s+/).filter(Boolean);
   const sub = (args[0] || '').toLowerCase();
 
-  const wl = store.data.whitelist;
-
   if (sub === 'status' || !sub) {
+    const mode = db.getWhitelistMode();
+    const admins = db.getWhitelistAdmins();
+    const allowed = db.getWhitelistAllowed();
+    const denied = db.getWhitelistDenied();
+
     const txt = `👥 <b>白名单状态</b>
 
-<b>模式:</b> ${wl.mode === 'allow' ? '白名单 (仅允许)' : '黑名单 (仅拒绝)'}
-<b>管理员:</b> ${wl.admins.length} 人
-<b>允许列表:</b> ${wl.allowed.length} 人
-<b>拒绝列表:</b> ${wl.denied.length} 人
+<b>模式:</b> ${mode === 'allow' ? '白名单 (仅允许)' : '黑名单 (仅拒绝)'}
+<b>管理员:</b> ${admins.length} 人
+<b>允许列表:</b> ${allowed.length} 人
+<b>拒绝列表:</b> ${denied.length} 人
 
 <b>管理员 ID:</b>
-${wl.admins.map((id) => `• ${id}`).join('\n') || '(空)'}`;
+${admins.map(id => `• ${id}`).join('\n') || '(空)'}`;
 
     await ctx.reply(txt, { parse_mode: 'HTML' });
     return;
@@ -38,8 +40,7 @@ ${wl.admins.map((id) => `• ${id}`).join('\n') || '(空)'}`;
       return;
     }
 
-    wl.mode = mode;
-    await store.writeSoon();
+    db.setWhitelistMode(mode);
     await ctx.reply(`✅ 已设置为 ${mode === 'allow' ? '白名单' : '黑名单'} 模式`);
     return;
   }
@@ -51,13 +52,7 @@ ${wl.admins.map((id) => `• ${id}`).join('\n') || '(空)'}`;
       return;
     }
 
-    if (!wl.allowed.includes(targetId)) {
-      wl.allowed.push(targetId);
-    }
-    const idx = wl.denied.indexOf(targetId);
-    if (idx >= 0) wl.denied.splice(idx, 1);
-
-    await store.writeSoon();
+    db.addToWhitelist(targetId, 'allowed');
     await ctx.reply(`✅ 已添加用户 ${targetId} 到允许列表`);
     return;
   }
@@ -69,13 +64,7 @@ ${wl.admins.map((id) => `• ${id}`).join('\n') || '(空)'}`;
       return;
     }
 
-    if (!wl.denied.includes(targetId)) {
-      wl.denied.push(targetId);
-    }
-    const idx = wl.allowed.indexOf(targetId);
-    if (idx >= 0) wl.allowed.splice(idx, 1);
-
-    await store.writeSoon();
+    db.addToWhitelist(targetId, 'denied');
     await ctx.reply(`✅ 已添加用户 ${targetId} 到拒绝列表`);
     return;
   }
@@ -87,12 +76,7 @@ ${wl.admins.map((id) => `• ${id}`).join('\n') || '(空)'}`;
       return;
     }
 
-    const allowIdx = wl.allowed.indexOf(targetId);
-    if (allowIdx >= 0) wl.allowed.splice(allowIdx, 1);
-    const denyIdx = wl.denied.indexOf(targetId);
-    if (denyIdx >= 0) wl.denied.splice(denyIdx, 1);
-
-    await store.writeSoon();
+    db.removeFromWhitelist(targetId);
     await ctx.reply(`✅ 已移除用户 ${targetId}`);
     return;
   }
@@ -107,28 +91,26 @@ ${wl.admins.map((id) => `• ${id}`).join('\n') || '(空)'}`;
     }
 
     if (action === 'add') {
-      if (!wl.admins.includes(targetId)) {
-        wl.admins.push(targetId);
-      }
+      db.addToWhitelist(targetId, 'admin');
     } else {
-      const idx = wl.admins.indexOf(targetId);
-      if (idx >= 0) wl.admins.splice(idx, 1);
+      db.removeFromWhitelist(targetId);
     }
 
-    await store.writeSoon();
     await ctx.reply(`✅ 管理员 ${action === 'add' ? '添加' : '移除'}: ${targetId}`);
     return;
   }
 
   if (sub === 'list') {
     const type = args[1]?.toLowerCase() || 'all';
-    let list: string[] = [];
+    const list: string[] = [];
 
     if (type === 'allowed' || type === 'all') {
-      list.push(`<b>允许列表:</b>\n${wl.allowed.map((id) => `• ${id}`).join('\n') || '(空)'}`);
+      const allowed = db.getWhitelistAllowed();
+      list.push(`<b>允许列表:</b>\n${allowed.map(id => `• ${id}`).join('\n') || '(空)'}`);
     }
     if (type === 'denied' || type === 'all') {
-      list.push(`<b>拒绝列表:</b>\n${wl.denied.map((id) => `• ${id}`).join('\n') || '(空)'}`);
+      const denied = db.getWhitelistDenied();
+      list.push(`<b>拒绝列表:</b>\n${denied.map(id => `• ${id}`).join('\n') || '(空)'}`);
     }
 
     await ctx.reply(list.join('\n\n'), { parse_mode: 'HTML' });

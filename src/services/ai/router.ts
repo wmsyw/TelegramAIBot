@@ -1,5 +1,5 @@
-import type { Provider, ChatMessage, AIResponse, Compat, Models } from '../../types/ai.js';
-import { store } from '../../storage/store.js';
+import type { ChatMessage, AIResponse, Compat } from '../../types/ai.js';
+import type { Provider } from '../../storage/sqlite.js';
 import { openaiProvider, detectCompat } from './openai.js';
 import { geminiProvider } from './gemini.js';
 import { claudeProvider } from './claude.js';
@@ -11,99 +11,62 @@ const providers: Record<Compat, AIProvider> = {
   claude: claudeProvider,
 };
 
-export function getCompat(providerName: string, model: string): Compat {
-  const ml = model.toLowerCase();
-  const catalog = store.data.modelCatalog?.map || {};
-  if (catalog[ml]) return catalog[ml];
-
-  const modelCompat = store.data.modelCompat?.[providerName]?.[ml];
-  if (modelCompat) return modelCompat;
-
-  const p = store.data.providers[providerName];
-  return detectCompat(providerName, model, p?.baseUrl || '');
-}
-
-export function pick(kind: keyof Models): { provider: string; model: string } | null {
-  const s = store.data.models[kind];
-  if (!s) return null;
-  const i = s.indexOf(' ');
-  if (i <= 0) return null;
-  return { provider: s.slice(0, i), model: s.slice(i + 1) };
-}
-
-export function providerOf(name: string): Provider | null {
-  return store.data.providers[name] || null;
+export function getCompat(provider: Provider, model: string): Compat {
+  return detectCompat(provider.name, model, provider.baseUrl);
 }
 
 export async function chat(
-  providerName: string,
+  provider: Provider,
   model: string,
   messages: ChatMessage[],
   options?: { maxTokens?: number; useSearch?: boolean }
 ): Promise<AIResponse> {
-  const p = providerOf(providerName);
-  if (!p) throw new Error(`Provider ${providerName} not configured`);
-
-  const compat = getCompat(providerName, model);
-  const provider = providers[compat];
-  return provider.chat(p, model, messages, options);
+  const compat = getCompat(provider, model);
+  const p = providers[compat];
+  return p.chat({ apiKey: provider.apiKey, baseUrl: provider.baseUrl }, model, messages, options);
 }
 
 export async function chatVision(
-  providerName: string,
+  provider: Provider,
   model: string,
   mediaData: string,
   mimeType: string,
   prompt?: string
 ): Promise<string> {
-  const p = providerOf(providerName);
-  if (!p) throw new Error(`Provider ${providerName} not configured`);
+  const compat = getCompat(provider, model);
+  const p = providers[compat];
 
-  const compat = getCompat(providerName, model);
-  const provider = providers[compat];
-
-  if (!provider.chatVision) {
+  if (!p.chatVision) {
     throw new Error(`Provider ${compat} does not support vision`);
   }
-  return provider.chatVision(p, model, mediaData, mimeType, prompt);
+  return p.chatVision({ apiKey: provider.apiKey, baseUrl: provider.baseUrl }, model, mediaData, mimeType, prompt);
 }
 
 export async function generateImage(
-  providerName: string,
+  provider: Provider,
   model: string,
   prompt: string
 ): Promise<Buffer | string> {
-  const p = providerOf(providerName);
-  if (!p) throw new Error(`Provider ${providerName} not configured`);
+  const compat = getCompat(provider, model);
+  const p = providers[compat];
 
-  const compat = getCompat(providerName, model);
-  const provider = providers[compat];
-
-  if (!provider.generateImage) {
+  if (!p.generateImage) {
     throw new Error(`Provider ${compat} does not support image generation`);
   }
-  return provider.generateImage(p, model, prompt);
+  return p.generateImage({ apiKey: provider.apiKey, baseUrl: provider.baseUrl }, model, prompt);
 }
 
 export async function tts(
-  providerName: string,
+  provider: Provider,
   model: string,
   text: string,
   voice?: string
 ): Promise<{ audio?: Buffer; mime?: string }> {
-  const p = providerOf(providerName);
-  if (!p) throw new Error(`Provider ${providerName} not configured`);
+  const compat = getCompat(provider, model);
+  const p = providers[compat];
 
-  const compat = getCompat(providerName, model);
-  const provider = providers[compat];
-
-  if (!provider.tts) {
+  if (!p.tts) {
     throw new Error(`Provider ${compat} does not support TTS`);
   }
-  return provider.tts(p, model, text, voice);
-}
-
-export function getCurrentVoice(compat: Compat): string {
-  if (!store.data.voices) store.data.voices = { gemini: 'Kore', openai: 'alloy' };
-  return compat === 'gemini' ? store.data.voices.gemini : store.data.voices.openai;
+  return p.tts({ apiKey: provider.apiKey, baseUrl: provider.baseUrl }, model, text, voice);
 }

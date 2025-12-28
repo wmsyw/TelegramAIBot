@@ -1,6 +1,5 @@
 import { Context, NextFunction } from 'grammy';
-import { store } from '../storage/store.js';
-import { env } from '../config/env.js';
+import { db } from '../storage/sqlite.js';
 
 export async function authMiddleware(ctx: Context, next: NextFunction): Promise<void> {
   const userId = ctx.from?.id;
@@ -9,18 +8,18 @@ export async function authMiddleware(ctx: Context, next: NextFunction): Promise<
     return;
   }
 
-  const wl = store.data.whitelist;
-
   // Admins always allowed
-  if (wl.admins.includes(userId) || env.ADMIN_IDS.includes(userId)) {
+  if (db.isAdmin(userId)) {
     await next();
     return;
   }
 
+  const mode = db.getWhitelistMode();
+
   // Check based on mode
-  if (wl.mode === 'allow') {
+  if (mode === 'allow') {
     // Whitelist mode: only allowed users can access
-    if (wl.allowed.includes(userId)) {
+    if (db.isAllowed(userId)) {
       await next();
       return;
     }
@@ -28,7 +27,7 @@ export async function authMiddleware(ctx: Context, next: NextFunction): Promise<
     return;
   } else {
     // Blacklist mode: all users allowed except denied
-    if (wl.denied.includes(userId)) {
+    if (db.isDenied(userId)) {
       return;
     }
     await next();
@@ -37,5 +36,5 @@ export async function authMiddleware(ctx: Context, next: NextFunction): Promise<
 }
 
 export function isAdmin(userId: number): boolean {
-  return store.data.whitelist.admins.includes(userId) || env.ADMIN_IDS.includes(userId);
+  return db.isAdmin(userId);
 }
