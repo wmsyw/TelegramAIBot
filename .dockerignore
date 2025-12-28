@@ -1,0 +1,11 @@
+node_modules/
+src/
+*.md
+*.log
+.git/
+.github/
+.env*
+!.env.example
+tsconfig.json
+.gitignore
+.eslintrc*
