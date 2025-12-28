@@ -1,11 +1,11 @@
 node_modules/
-src/
+dist/
+data/
 *.md
 *.log
 .git/
 .github/
 .env*
 !.env.example
-tsconfig.json
 .gitignore
 .eslintrc*
