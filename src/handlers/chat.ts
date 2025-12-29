@@ -15,8 +15,8 @@ async function tryDeleteMessage(ctx: Context, messageId: number): Promise<void> 
   }
 }
 
-async function sendLong(ctx: Context, text: string, collapse?: boolean, postfix?: string): Promise<void> {
-  const chunks = buildChunks(text, collapse, postfix);
+async function sendLong(ctx: Context, text: string, postfix?: string): Promise<void> {
+  const chunks = buildChunks(text, postfix);
   for (const chunk of chunks) {
     await ctx.reply(chunk, { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
   }
@@ -63,7 +63,7 @@ async function doProcessChat(ctx: Context, userId: number, input: string): Promi
     db.addSessionMessage(userId, 'user', input);
     db.addSessionMessage(userId, 'assistant', result.content, result.thought);
 
-    const full = formatQA(input, result.content, user.collapse);
+    const full = formatQA(input, result.content);
     const footTxt = footer(m.model);
 
     const telegraph = db.getTelegraph(userId);
@@ -80,7 +80,7 @@ async function doProcessChat(ctx: Context, userId: number, input: string): Promi
     }
 
     await tryDeleteMessage(ctx, statusMsg.message_id);
-    await sendLong(ctx, full, user.collapse, footTxt);
+    await sendLong(ctx, full, footTxt);
   } catch (e: any) {
     try {
       await ctx.api.editMessageText(ctx.chat!.id, statusMsg.message_id, `❌ 错误：${html(e?.message || String(e))}`);
@@ -162,11 +162,11 @@ async function doProcessSearch(ctx: Context, userId: number, input: string): Pro
     db.addSessionMessage(userId, 'user', input);
     db.addSessionMessage(userId, 'assistant', result.content);
 
-    const full = formatQA(input, result.content, user.collapse);
+    const full = formatQA(input, result.content);
     const footTxt = footer(m.model, 'with Search');
 
     await tryDeleteMessage(ctx, statusMsg.message_id);
-    await sendLong(ctx, full, user.collapse, footTxt);
+    await sendLong(ctx, full, footTxt);
   } catch (e: any) {
     try {
       await ctx.api.editMessageText(ctx.chat!.id, statusMsg.message_id, `❌ 错误：${html(e?.message || String(e))}`);

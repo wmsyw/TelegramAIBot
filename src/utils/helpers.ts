@@ -1,4 +1,4 @@
-import { MAX_MSG, PAGE_EXTRA, WRAP_EXTRA_COLLAPSED } from '../config/constants.js';
+import { MAX_MSG, PAGE_EXTRA } from '../config/constants.js';
 
 export function splitMessage(text: string, reserve = 0): string[] {
   const limit = Math.max(1, MAX_MSG - Math.max(0, reserve));
@@ -30,19 +30,12 @@ export function splitMessage(text: string, reserve = 0): string[] {
   return parts;
 }
 
-export function applyWrap(s: string, collapse?: boolean): string {
-  if (!collapse) return s;
-  if (/<blockquote(?:\s|>|\/)\/?>/i.test(s) || /<blockquote(?:\s|>|\/)/i.test(s)) return s;
-  return `<span class="tg-spoiler">${s}</span>`;
-}
-
-export function buildChunks(text: string, collapse?: boolean, postfix?: string): string[] {
-  const WRAP_EXTRA = collapse ? WRAP_EXTRA_COLLAPSED : 0;
-  const parts = splitMessage(text, PAGE_EXTRA + WRAP_EXTRA);
+export function buildChunks(text: string, postfix?: string): string[] {
+  const parts = splitMessage(text, PAGE_EXTRA);
   if (parts.length === 0) return [];
 
   if (parts.length === 1) {
-    return [applyWrap(parts[0], collapse) + (postfix || '')];
+    return [parts[0] + (postfix || '')];
   }
 
   const total = parts.length;
@@ -50,9 +43,8 @@ export function buildChunks(text: string, collapse?: boolean, postfix?: string):
   for (let i = 0; i < total; i++) {
     const isLast = i === total - 1;
     const header = `📄 (${i + 1}/${total})\n\n`;
-    const body = header + parts[i];
-    const wrapped = applyWrap(body, collapse) + (isLast ? postfix || '' : '');
-    chunks.push(wrapped);
+    const body = header + parts[i] + (isLast ? postfix || '' : '');
+    chunks.push(body);
   }
   return chunks;
 }

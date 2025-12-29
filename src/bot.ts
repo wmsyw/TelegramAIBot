@@ -7,7 +7,6 @@ import { sessionRouterMiddleware } from './middlewares/session.js';
 import { handleStart, handleHelp } from './handlers/start.js';
 import { handleChat, handleChatMessage, handleSearch, handleSearchMessage } from './handlers/chat.js';
 import { handleImage, handleImageMessage } from './handlers/image.js';
-import { handleTTS, handleTTSMessage, handleAudio, handleAudioMessage } from './handlers/audio.js';
 import { handleLive, handleLiveVoice, handleLiveText } from './handlers/live.js';
 import { handleCancel } from './handlers/cancel.js';
 import { handleConfig } from './handlers/config.js';
@@ -30,8 +29,6 @@ export function createBot(): Bot {
   bot.command('chat', handleChat);
   bot.command('search', handleSearch);
   bot.command('image', handleImage);
-  bot.command('tts', handleTTS);
-  bot.command('audio', handleAudio);
   bot.command('live', handleLive);
   bot.command('cancel', handleCancel);
   bot.command('config', handleConfig);
@@ -45,8 +42,6 @@ export function createBot(): Bot {
   bot.command('s', handleSearch);
   bot.command('img', handleImage);
   bot.command('i', handleImage);
-  bot.command('v', handleTTS);
-  bot.command('a', handleAudio);
   bot.command('l', handleLive);
 
   // Session message routing for non-command messages
@@ -68,12 +63,6 @@ export function createBot(): Bot {
         break;
       case 'image':
         await handleImageMessage(ctx);
-        break;
-      case 'tts':
-        await handleTTSMessage(ctx);
-        break;
-      case 'audio':
-        await handleAudioMessage(ctx);
         break;
       case 'live':
         await handleLiveText(ctx);
@@ -127,8 +116,6 @@ export async function setupBot(): Promise<Bot> {
     { command: 'chat', description: 'AI 对话' },
     { command: 'search', description: '搜索模式对话' },
     { command: 'image', description: '生成图片' },
-    { command: 'tts', description: '文本转语音' },
-    { command: 'audio', description: '对话后转语音' },
     { command: 'live', description: '实时语音对话' },
     { command: 'cancel', description: '退出当前模式' },
     { command: 'config', description: '配置管理' },

@@ -12,12 +12,10 @@ export async function handleConfig(ctx: Context): Promise<void> {
   const sub = (args[0] || '').toLowerCase();
 
   if (sub === 'status' || !sub) {
-    const user = db.getUser(userId);
     const models = db.getAllModels(userId);
     const telegraph = db.getTelegraph(userId);
 
     const flags = [
-      `• 折叠: ${user.collapse ? '开启' : '关闭'}`,
       `• Telegraph: ${telegraph.enabled ? '开启' : '关闭'}${telegraph.enabled && telegraph.limit ? `（阈值 ${telegraph.limit}）` : ''}`,
     ].join('\n');
 
@@ -36,7 +34,6 @@ export async function handleConfig(ctx: Context): Promise<void> {
 <b>chat:</b> <code>${html(models.chat) || '(未设)'}</code>
 <b>search:</b> <code>${html(models.search) || '(未设)'}</code>
 <b>image:</b> <code>${html(models.image) || '(未设)'}</code>
-<b>tts:</b> <code>${html(models.tts) || '(未设)'}</code>
 
 <b>功能开关</b>
 ${flags}
@@ -143,21 +140,6 @@ ${provList}`;
     return;
   }
 
-  if (sub === 'collapse') {
-    const val = args[1]?.toLowerCase();
-    if (val === 'on') {
-      db.updateUser(userId, { collapse: true });
-      await ctx.reply('✅ 已开启折叠');
-    } else if (val === 'off') {
-      db.updateUser(userId, { collapse: false });
-      await ctx.reply('✅ 已关闭折叠');
-    } else {
-      const user = db.getUser(userId);
-      await ctx.reply(`折叠状态: ${user.collapse ? '开启' : '关闭'}\n\n用法: /config collapse <on|off>`);
-    }
-    return;
-  }
-
   if (sub === 'telegraph') {
     const action = args[1]?.toLowerCase();
     if (action === 'on') {
@@ -185,5 +167,5 @@ ${provList}`;
     return;
   }
 
-  await ctx.reply('❌ 未知子命令。支持: status, add, update, remove, list, collapse, telegraph');
+  await ctx.reply('❌ 未知子命令。支持: status, add, update, remove, list, telegraph');
 }
