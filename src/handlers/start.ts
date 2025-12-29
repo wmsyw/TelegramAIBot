@@ -20,7 +20,11 @@ const HELP_MAIN = `🤖 <b>AI Bot 帮助</b>
 <b>👥 管理命令</b>
 /whitelist - 用户白名单管理 (管理员)
 
-<b>💡 使用详细帮助</b>
+<b>💡 使用技巧</b>
+• 群内 @机器人 + 问题 直接对话
+• 输入框中 @机器人 空格后输入问题 进行 inline 查询
+
+<b>📖 详细帮助</b>
 /help config - 配置命令详解
 /help model - 模型命令详解
 /help prompt - 模板命令详解`;

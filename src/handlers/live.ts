@@ -20,7 +20,11 @@ export async function handleLive(ctx: Context): Promise<void> {
 
   const text = stripCommand(ctx.message?.text, 'live');
   if (!text) {
-    await ctx.reply('❌ 请提供文本内容\n用法：\n• <code>/live 你的问题</code> - 文字对话\n• 直接发送语音消息 - 语音对话', { parse_mode: 'HTML' });
+    // Enter live mode
+    const user = db.getUser(userId);
+    if (user.mode !== 'live') db.clearSessionMessages(userId);
+    db.updateUser(userId, { mode: 'live' });
+    await ctx.reply('🎙️ 进入实时语音模式\n• 发送语音或文字进行对话\n• 使用 /cancel 退出');
     return;
   }
 

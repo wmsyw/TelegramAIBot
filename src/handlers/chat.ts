@@ -217,3 +217,63 @@ export async function handleSearchMessage(ctx: Context): Promise<void> {
 
   await processSearch(ctx, userId, input);
 }
+
+export async function handleInlineQuery(ctx: Context): Promise<void> {
+  const userId = ctx.from?.id;
+  if (!userId) return;
+
+  const query = ctx.inlineQuery?.query?.trim();
+  if (!query) {
+    await ctx.answerInlineQuery([], { cache_time: 0 });
+    return;
+  }
+
+  const m = db.getModel(userId, 'chat');
+  if (!m) {
+    await ctx.answerInlineQuery([{
+      type: 'article',
+      id: 'no_model',
+      title: '❌ 未配置模型',
+      description: '请先使用 /model chat <provider> <model> 设置',
+      input_message_content: { message_text: '❌ 未配置 chat 模型' },
+    }], { cache_time: 0 });
+    return;
+  }
+
+  const p = db.getProvider(userId, m.provider);
+  if (!p) {
+    await ctx.answerInlineQuery([{
+      type: 'article',
+      id: 'no_provider',
+      title: '❌ 服务商未配置',
+      description: `服务商 ${m.provider} 未配置`,
+      input_message_content: { message_text: `❌ 服务商 ${m.provider} 未配置` },
+    }], { cache_time: 0 });
+    return;
+  }
+
+  try {
+    const msgs: ChatMessage[] = [{ role: 'user', content: query }];
+    const result = await chat(p, m.model, msgs);
+
+    const answer = result.content.slice(0, 4000);
+    await ctx.answerInlineQuery([{
+      type: 'article',
+      id: `chat_${Date.now()}`,
+      title: '💬 AI 回复',
+      description: answer.slice(0, 100),
+      input_message_content: {
+        message_text: `<b>Q:</b> ${html(query)}\n\n<b>A:</b> ${html(answer)}`,
+        parse_mode: 'HTML',
+      },
+    }], { cache_time: 60 });
+  } catch (e: any) {
+    await ctx.answerInlineQuery([{
+      type: 'article',
+      id: 'error',
+      title: '❌ 处理失败',
+      description: e?.message || String(e),
+      input_message_content: { message_text: `❌ 错误：${e?.message || String(e)}` },
+    }], { cache_time: 0 });
+  }
+}

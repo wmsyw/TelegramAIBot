@@ -5,7 +5,7 @@ import { authMiddleware } from './middlewares/auth.js';
 import { errorMiddleware } from './middlewares/error.js';
 import { sessionRouterMiddleware } from './middlewares/session.js';
 import { handleStart, handleHelp } from './handlers/start.js';
-import { handleChat, handleChatMessage, handleSearch, handleSearchMessage } from './handlers/chat.js';
+import { handleChat, handleChatMessage, handleSearch, handleSearchMessage, handleInlineQuery, processChat } from './handlers/chat.js';
 import { handleImage, handleImageMessage } from './handlers/image.js';
 import { handleLive, handleLiveVoice, handleLiveText } from './handlers/live.js';
 import { handleCancel } from './handlers/cancel.js';
@@ -46,10 +46,28 @@ export function createBot(): Bot {
   // Callback query handler
   bot.on('callback_query:data', handleCallback);
 
+  // Inline query handler
+  bot.on('inline_query', handleInlineQuery);
+
   // Session message routing for non-command messages
   bot.on('message:text', async (ctx) => {
     const userId = ctx.from?.id;
     if (!userId) return;
+
+    const text = ctx.message?.text || '';
+    const botInfo = ctx.me;
+
+    // Group @mention detection
+    if (ctx.chat?.type !== 'private' && botInfo?.username) {
+      const mentionPattern = new RegExp(`@${botInfo.username}\\b`, 'i');
+      if (mentionPattern.test(text)) {
+        const query = text.replace(mentionPattern, '').trim();
+        if (query) {
+          await processChat(ctx, userId, query);
+          return;
+        }
+      }
+    }
 
     const user = db.getUser(userId);
     const mode = user.mode;
