@@ -11,7 +11,6 @@ import { handleLive, handleLiveVoice, handleLiveText } from './handlers/live.js'
 import { handleCancel } from './handlers/cancel.js';
 import { handleConfig } from './handlers/config.js';
 import { handleModel } from './handlers/model.js';
-import { handleVoice } from './handlers/voice.js';
 import { handlePrompt } from './handlers/prompt.js';
 import { handleWhitelist } from './handlers/whitelist.js';
 import { handleCallback } from './handlers/callback.js';
@@ -34,7 +33,6 @@ export function createBot(): Bot {
   bot.command('cancel', handleCancel);
   bot.command('config', handleConfig);
   bot.command('model', handleModel);
-  bot.command('voice', handleVoice);
   bot.command('prompt', handlePrompt);
   bot.command('whitelist', handleWhitelist);
 
@@ -124,7 +122,6 @@ export async function setupBot(): Promise<Bot> {
     { command: 'cancel', description: '退出当前模式' },
     { command: 'config', description: '配置管理' },
     { command: 'model', description: '模型设置' },
-    { command: 'voice', description: '音色设置' },
     { command: 'prompt', description: '模板管理' },
     { command: 'whitelist', description: '白名单管理' },
   ]);

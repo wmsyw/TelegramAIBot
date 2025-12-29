@@ -11,14 +11,9 @@ const HELP_MAIN = `🤖 <b>AI Bot 帮助</b>
 <b>🖼️ 图片命令</b>
 /image [描述] - 生成图片，无参数进入图片模式
 
-<b>🎵 语音命令</b>
-/tts [文本] - 文本转语音
-/audio [问题] - 对话后转语音
-
 <b>⚙️ 设置命令</b>
 /config - 服务商和功能配置
 /model - 模型设置
-/voice - 音色设置
 /prompt - Prompt 模板管理
 /cancel - 退出当前模式
 
@@ -28,7 +23,6 @@ const HELP_MAIN = `🤖 <b>AI Bot 帮助</b>
 <b>💡 使用详细帮助</b>
 /help config - 配置命令详解
 /help model - 模型命令详解
-/help voice - 音色命令详解
 /help prompt - 模板命令详解`;
 
 const HELP_CONFIG = `⚙️ <b>/config 命令详解</b>
@@ -80,7 +74,6 @@ const HELP_MODEL = `🔧 <b>/model 命令详解</b>
 • <code>chat</code> - 对话模型
 • <code>search</code> - 搜索模型
 • <code>image</code> - 图像生成模型
-• <code>tts</code> - 语音合成模型
 • <code>live</code> - 实时语音模型
 
 <b>配置示例</b>
@@ -89,33 +82,9 @@ const HELP_MODEL = `🔧 <b>/model 命令详解</b>
 <code>/model chat claude claude-sonnet-4-20250514</code>
 <code>/model search gemini gemini-2.5-flash</code>
 <code>/model image openai dall-e-3</code>
-<code>/model tts openai tts-1</code>
-<code>/model tts gemini gemini-2.5-flash</code>
 
 <b>⚠️ 注意</b>
 设置模型前需先添加对应服务商: /config add`;
-
-const HELP_VOICE = `🎤 <b>/voice 命令详解</b>
-
-<b>查看音色</b>
-<code>/voice</code> - 查看当前音色和可用列表
-<code>/voice list</code> - 同上
-
-<b>设置 Gemini 音色</b>
-<code>/voice gemini &lt;音色名&gt;</code>
-可选: Aoede, Charon, Fenrir, Kore, Puck 等
-
-<b>设置 OpenAI 音色</b>
-<code>/voice openai &lt;音色名&gt;</code>
-可选: alloy, echo, fable, onyx, nova, shimmer
-
-<b>配置示例</b>
-<code>/voice gemini Aoede</code>
-<code>/voice openai nova</code>
-
-<b>💡 说明</b>
-• Gemini 音色用于 /tts 和 /live 命令
-• OpenAI 音色用于 /tts 命令`;
 
 const HELP_PROMPT = `🧩 <b>/prompt 命令详解</b>
 
@@ -146,7 +115,6 @@ const HELP_PROMPT = `🧩 <b>/prompt 命令详解</b>
 <code>/prompt chat</code> - 清除对话模板
 <code>/prompt search</code> - 清除搜索模板
 <code>/prompt image</code> - 清除图片模板
-<code>/prompt tts</code> - 清除语音模板
 
 <b>💡 使用场景</b>
 • 设置系统角色: "你是一个专业翻译..."
@@ -156,7 +124,6 @@ const HELP_PROMPT = `🧩 <b>/prompt 命令详解</b>
 const HELP_MAP: Record<string, string> = {
   config: HELP_CONFIG,
   model: HELP_MODEL,
-  voice: HELP_VOICE,
   prompt: HELP_PROMPT,
 };
 
