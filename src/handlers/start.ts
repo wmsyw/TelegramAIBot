@@ -1,4 +1,4 @@
-import { Context } from 'grammy';
+import { Context, InlineKeyboard } from 'grammy';
 import { stripCommand } from '../utils/text.js';
 
 const HELP_MAIN = `🤖 <b>AI Bot 帮助</b>
@@ -161,7 +161,14 @@ const HELP_MAP: Record<string, string> = {
 };
 
 export async function handleStart(ctx: Context): Promise<void> {
-  await ctx.reply(`🤖 欢迎使用 AI Bot!\n\n使用 /help 查看帮助`, { parse_mode: 'HTML' });
+  const keyboard = new InlineKeyboard()
+    .text('💬 对话', 'mode:chat').text('🔍 搜索', 'mode:search').row()
+    .text('🎨 图片', 'mode:image').text('🎤 实时', 'mode:live');
+
+  await ctx.reply(`🤖 <b>欢迎使用 AI Bot!</b>\n\n请选择模式，或使用 /help 查看帮助`, {
+    parse_mode: 'HTML',
+    reply_markup: keyboard,
+  });
 }
 
 export async function handleHelp(ctx: Context): Promise<void> {

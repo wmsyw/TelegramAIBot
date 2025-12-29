@@ -1,4 +1,4 @@
-import { Context } from 'grammy';
+import { Context, InlineKeyboard } from 'grammy';
 import { db } from '../storage/sqlite.js';
 import { html, shortenUrlForDisplay, trimBase, sanitizeUrl, stripCommand } from '../utils/text.js';
 import { maskApiKey } from '../utils/crypto.js';
@@ -12,36 +12,7 @@ export async function handleConfig(ctx: Context): Promise<void> {
   const sub = (args[0] || '').toLowerCase();
 
   if (sub === 'status' || !sub) {
-    const models = db.getAllModels(userId);
-    const telegraph = db.getTelegraph(userId);
-
-    const flags = [
-      `• Telegraph: ${telegraph.enabled ? '开启' : '关闭'}${telegraph.enabled && telegraph.limit ? `（阈值 ${telegraph.limit}）` : ''}`,
-    ].join('\n');
-
-    const providers = db.listProviders(userId);
-    const provList = providers.length
-      ? providers.map(v => {
-          const display = shortenUrlForDisplay(v.baseUrl);
-          const maskedKey = maskApiKey(v.apiKey);
-          return `• <b>${html(v.name)}</b> - key:<code>${html(maskedKey)}</code> base:<a href="${sanitizeUrl(v.baseUrl)}">${html(display)}</a>`;
-        }).join('\n')
-      : '(空)';
-
-    const txt = `⚙️ <b>AI 配置概览</b>
-
-<b>功能模型</b>
-<b>chat:</b> <code>${html(models.chat) || '(未设)'}</code>
-<b>search:</b> <code>${html(models.search) || '(未设)'}</code>
-<b>image:</b> <code>${html(models.image) || '(未设)'}</code>
-
-<b>功能开关</b>
-${flags}
-
-<b>服务商</b>
-${provList}`;
-
-    await ctx.reply(txt, { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+    await renderConfigStatus(ctx, userId, false);
     return;
   }
 
@@ -168,4 +139,55 @@ ${provList}`;
   }
 
   await ctx.reply('❌ 未知子命令。支持: status, add, update, remove, list, telegraph');
+}
+
+export async function renderConfigStatus(ctx: Context, userId: number, isEdit: boolean): Promise<void> {
+  const models = db.getAllModels(userId);
+  const telegraph = db.getTelegraph(userId);
+
+  const flags = [
+    `• Telegraph: ${telegraph.enabled ? '开启' : '关闭'}${telegraph.enabled && telegraph.limit ? `（阈值 ${telegraph.limit}）` : ''}`,
+  ].join('\n');
+
+  const providers = db.listProviders(userId);
+  const provList = providers.length
+    ? providers.map(v => {
+        const display = shortenUrlForDisplay(v.baseUrl);
+        const maskedKey = maskApiKey(v.apiKey);
+        return `• <b>${html(v.name)}</b> - key:<code>${html(maskedKey)}</code> base:<a href="${sanitizeUrl(v.baseUrl)}">${html(display)}</a>`;
+      }).join('\n')
+    : '(空)';
+
+  const txt = `⚙️ <b>AI 配置概览</b>
+
+<b>功能模型</b>
+<b>chat:</b> <code>${html(models.chat || '(未设)')}</code>
+<b>search:</b> <code>${html(models.search || '(未设)')}</code>
+<b>image:</b> <code>${html(models.image || '(未设)')}</code>
+
+<b>功能开关</b>
+${flags}
+
+<b>服务商</b>
+${provList}`;
+
+  const keyboard = new InlineKeyboard()
+    .text(telegraph.enabled ? '🔴 关闭 Telegraph' : '🟢 开启 Telegraph', 'config:toggle_tg').row()
+    .text('🔄 刷新', 'config:refresh');
+
+  const opts = {
+    parse_mode: 'HTML' as const,
+    link_preview_options: { is_disabled: true },
+    reply_markup: keyboard,
+  };
+
+  if (isEdit && ctx.callbackQuery) {
+    try {
+      await ctx.editMessageText(txt, opts);
+    } catch {
+      // MESSAGE_NOT_MODIFIED or other errors - ignore
+    }
+  } else {
+    await ctx.reply(txt, opts);
+  }
 }

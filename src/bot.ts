@@ -14,6 +14,7 @@ import { handleModel } from './handlers/model.js';
 import { handleVoice } from './handlers/voice.js';
 import { handlePrompt } from './handlers/prompt.js';
 import { handleWhitelist } from './handlers/whitelist.js';
+import { handleCallback } from './handlers/callback.js';
 
 export function createBot(): Bot {
   const bot = new Bot(env.BOT_TOKEN);
@@ -43,6 +44,9 @@ export function createBot(): Bot {
   bot.command('img', handleImage);
   bot.command('i', handleImage);
   bot.command('l', handleLive);
+
+  // Callback query handler
+  bot.on('callback_query:data', handleCallback);
 
   // Session message routing for non-command messages
   bot.on('message:text', async (ctx) => {

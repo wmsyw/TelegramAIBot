@@ -20,9 +20,10 @@ async function processImage(ctx: Context, userId: number, prompt: string): Promi
 
 async function doProcessImage(ctx: Context, userId: number, prompt: string): Promise<void> {
   const user = db.getUser(userId);
-  if (user.mode !== 'idle' && user.mode !== 'image') {
-    await ctx.reply('❌ 请先使用 /cancel 退出当前模式');
-    return;
+  // Smart mode switching: auto-switch to image mode
+  if (user.mode !== 'image') {
+    if (user.mode !== 'idle') db.clearSessionMessages(userId);
+    db.updateUser(userId, { mode: 'image' });
   }
 
   const m = db.getModel(userId, 'image');
@@ -75,11 +76,7 @@ export async function handleImage(ctx: Context): Promise<void> {
 
   if (!prompt) {
     const user = db.getUser(userId);
-    if (user.mode !== 'idle') {
-      await ctx.reply('❌ 请先使用 /cancel 退出当前模式');
-      return;
-    }
-    db.clearSessionMessages(userId);
+    if (user.mode !== 'image') db.clearSessionMessages(userId);
     db.updateUser(userId, { mode: 'image' });
     await ctx.reply('🎨 进入图片模式\n发送描述生成图片\n使用 /cancel 退出');
     return;
