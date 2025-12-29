@@ -4,6 +4,7 @@ import { db } from '../storage/sqlite.js';
 import { generateImage, getCompat } from '../services/ai/router.js';
 import { footer } from '../utils/helpers.js';
 import { html, stripCommand } from '../utils/text.js';
+import { withUserLock } from '../utils/lock.js';
 
 async function tryDeleteMessage(ctx: Context, messageId: number): Promise<void> {
   try {
@@ -14,6 +15,10 @@ async function tryDeleteMessage(ctx: Context, messageId: number): Promise<void> 
 }
 
 async function processImage(ctx: Context, userId: number, prompt: string): Promise<void> {
+  await withUserLock(userId, () => doProcessImage(ctx, userId, prompt));
+}
+
+async function doProcessImage(ctx: Context, userId: number, prompt: string): Promise<void> {
   const user = db.getUser(userId);
   if (user.mode !== 'idle' && user.mode !== 'image') {
     await ctx.reply('❌ 请先使用 /cancel 退出当前模式');

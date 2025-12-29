@@ -44,9 +44,25 @@ export interface SessionMessage {
 class SQLiteStore {
   private static instance: SQLiteStore;
   private db!: Database.Database;
+  private cache = new Map<string, any>();
+  private readonly CACHE_LIMIT = 2000;
   public baseDir: string = '';
 
   private constructor() {}
+
+  private getCached<T>(key: string, fetchFn: () => T): T {
+    if (this.cache.has(key)) return this.cache.get(key) as T;
+    const val = fetchFn();
+    if (this.cache.size >= this.CACHE_LIMIT) this.cache.clear();
+    this.cache.set(key, val);
+    return val;
+  }
+
+  private invalidate(keyPrefix: string): void {
+    for (const key of this.cache.keys()) {
+      if (key.startsWith(keyPrefix)) this.cache.delete(key);
+    }
+  }
 
   static getInstance(): SQLiteStore {
     if (!SQLiteStore.instance) {
@@ -166,12 +182,14 @@ class SQLiteStore {
 
   // ========== User ==========
   getUser(userId: number): UserConfig {
-    const row = this.db.prepare('SELECT * FROM users WHERE user_id = ?').get(userId) as any;
-    if (!row) {
-      this.db.prepare('INSERT INTO users (user_id) VALUES (?)').run(userId);
-      return { userId, collapse: false, mode: 'idle' };
-    }
-    return { userId, collapse: !!row.collapse, mode: row.mode as SessionMode };
+    return this.getCached(`u:${userId}`, () => {
+      const row = this.db.prepare('SELECT * FROM users WHERE user_id = ?').get(userId) as any;
+      if (!row) {
+        this.db.prepare('INSERT INTO users (user_id) VALUES (?)').run(userId);
+        return { userId, collapse: false, mode: 'idle' as SessionMode };
+      }
+      return { userId, collapse: !!row.collapse, mode: row.mode as SessionMode };
+    });
   }
 
   updateUser(userId: number, updates: Partial<Pick<UserConfig, 'collapse' | 'mode'>>): void {
@@ -183,17 +201,20 @@ class SQLiteStore {
     if (sets.length === 0) return;
     vals.push(userId);
     this.db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE user_id = ?`).run(...vals);
+    this.invalidate(`u:${userId}`);
   }
 
   // ========== Providers ==========
   getProvider(userId: number, name: string): Provider | null {
-    const row = this.db.prepare('SELECT * FROM providers WHERE user_id = ? AND name = ?').get(userId, name) as any;
-    if (!row) return null;
-    try {
-      return { name: row.name, apiKey: decrypt(row.api_key), baseUrl: row.base_url };
-    } catch {
-      return { name: row.name, apiKey: row.api_key, baseUrl: row.base_url };
-    }
+    return this.getCached(`p:${userId}:${name}`, () => {
+      const row = this.db.prepare('SELECT * FROM providers WHERE user_id = ? AND name = ?').get(userId, name) as any;
+      if (!row) return null;
+      try {
+        return { name: row.name, apiKey: decrypt(row.api_key), baseUrl: row.base_url };
+      } catch {
+        return { name: row.name, apiKey: row.api_key, baseUrl: row.base_url };
+      }
+    });
   }
 
   listProviders(userId: number): Provider[] {
@@ -214,21 +235,26 @@ class SQLiteStore {
       INSERT INTO providers (user_id, name, api_key, base_url) VALUES (?, ?, ?, ?)
       ON CONFLICT(user_id, name) DO UPDATE SET api_key = excluded.api_key, base_url = excluded.base_url
     `).run(userId, name, encryptedKey, baseUrl);
+    this.invalidate(`p:${userId}`);
   }
 
   deleteProvider(userId: number, name: string): boolean {
     const result = this.db.prepare('DELETE FROM providers WHERE user_id = ? AND name = ?').run(userId, name);
+    this.invalidate(`p:${userId}`);
     return result.changes > 0;
   }
 
   deleteAllProviders(userId: number): void {
     this.db.prepare('DELETE FROM providers WHERE user_id = ?').run(userId);
+    this.invalidate(`p:${userId}`);
   }
 
   // ========== Models ==========
   getModel(userId: number, kind: string): ModelConfig | null {
-    const row = this.db.prepare('SELECT * FROM models WHERE user_id = ? AND kind = ?').get(userId, kind) as any;
-    return row ? { provider: row.provider, model: row.model } : null;
+    return this.getCached(`m:${userId}:${kind}`, () => {
+      const row = this.db.prepare('SELECT * FROM models WHERE user_id = ? AND kind = ?').get(userId, kind) as any;
+      return row ? { provider: row.provider, model: row.model } : null;
+    });
   }
 
   getAllModels(userId: number): Record<string, string> {
@@ -246,12 +272,15 @@ class SQLiteStore {
       INSERT INTO models (user_id, kind, provider, model) VALUES (?, ?, ?, ?)
       ON CONFLICT(user_id, kind) DO UPDATE SET provider = excluded.provider, model = excluded.model
     `).run(userId, kind, provider, model);
+    this.invalidate(`m:${userId}`);
   }
 
   // ========== Voices ==========
   getVoice(userId: number, provider: string): string | null {
-    const row = this.db.prepare('SELECT voice_id FROM voices WHERE user_id = ? AND provider = ?').get(userId, provider) as any;
-    return row?.voice_id || null;
+    return this.getCached(`v:${userId}:${provider}`, () => {
+      const row = this.db.prepare('SELECT voice_id FROM voices WHERE user_id = ? AND provider = ?').get(userId, provider) as any;
+      return row?.voice_id || null;
+    });
   }
 
   setVoice(userId: number, provider: string, voiceId: string): void {
@@ -260,6 +289,7 @@ class SQLiteStore {
       INSERT INTO voices (user_id, provider, voice_id) VALUES (?, ?, ?)
       ON CONFLICT(user_id, provider) DO UPDATE SET voice_id = excluded.voice_id
     `).run(userId, provider, voiceId);
+    this.invalidate(`v:${userId}:${provider}`);
   }
 
   // ========== Prompts ==========
@@ -311,10 +341,12 @@ class SQLiteStore {
 
   // ========== Telegraph ==========
   getTelegraph(userId: number): TelegraphConfig {
-    const row = this.db.prepare('SELECT * FROM telegraph WHERE user_id = ?').get(userId) as any;
-    return row
-      ? { enabled: !!row.enabled, limit: row.limit_val, token: row.token || '' }
-      : { enabled: false, limit: 0, token: '' };
+    return this.getCached(`tg:${userId}`, () => {
+      const row = this.db.prepare('SELECT * FROM telegraph WHERE user_id = ?').get(userId) as any;
+      return row
+        ? { enabled: !!row.enabled, limit: row.limit_val, token: row.token || '' }
+        : { enabled: false, limit: 0, token: '' };
+    });
   }
 
   setTelegraph(userId: number, config: Partial<TelegraphConfig>): void {
@@ -327,6 +359,7 @@ class SQLiteStore {
       INSERT INTO telegraph (user_id, enabled, limit_val, token) VALUES (?, ?, ?, ?)
       ON CONFLICT(user_id) DO UPDATE SET enabled = excluded.enabled, limit_val = excluded.limit_val, token = excluded.token
     `).run(userId, enabled, limit, token);
+    this.invalidate(`tg:${userId}`);
   }
 
   // ========== Session Messages ==========

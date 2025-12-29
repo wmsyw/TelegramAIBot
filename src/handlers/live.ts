@@ -6,6 +6,7 @@ import { processWithGeminiLive } from '../services/live/gemini-live.js';
 import { convertOggToPcm, convertPcmToOgg, downloadTelegramFile, textToSpeechPcm } from '../utils/audio.js';
 import { html } from '../utils/text.js';
 import { stripCommand } from '../utils/text.js';
+import { withUserLock } from '../utils/lock.js';
 
 export async function handleLive(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
@@ -43,6 +44,10 @@ export async function handleLiveVoice(ctx: Context): Promise<void> {
 }
 
 async function processLiveText(ctx: Context, userId: number, text: string, apiKey: string): Promise<void> {
+  await withUserLock(userId, () => doProcessLiveText(ctx, userId, text, apiKey));
+}
+
+async function doProcessLiveText(ctx: Context, userId: number, text: string, apiKey: string): Promise<void> {
   const statusMsg = await ctx.reply('🗣️ 生成语音中...');
 
   try {
@@ -68,6 +73,10 @@ async function processLiveText(ctx: Context, userId: number, text: string, apiKe
 }
 
 async function processLiveVoice(ctx: Context, userId: number, fileId: string, apiKey: string): Promise<void> {
+  await withUserLock(userId, () => doProcessLiveVoice(ctx, userId, fileId, apiKey));
+}
+
+async function doProcessLiveVoice(ctx: Context, userId: number, fileId: string, apiKey: string): Promise<void> {
   const statusMsg = await ctx.reply('👂 正在听取...');
 
   try {

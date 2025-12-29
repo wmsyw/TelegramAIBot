@@ -4,6 +4,7 @@ import { openaiProvider, detectCompat } from './openai.js';
 import { geminiProvider } from './gemini.js';
 import { claudeProvider } from './claude.js';
 import type { AIProvider } from './interface.js';
+import { globalLimiter } from '../../utils/lock.js';
 
 const providers: Record<Compat, AIProvider> = {
   openai: openaiProvider,
@@ -23,7 +24,10 @@ export async function chat(
 ): Promise<AIResponse> {
   const compat = getCompat(provider, model);
   const p = providers[compat];
-  return p.chat({ apiKey: provider.apiKey, baseUrl: provider.baseUrl }, model, messages, options);
+  return globalLimiter.run(
+    () => p.chat({ apiKey: provider.apiKey, baseUrl: provider.baseUrl }, model, messages, options),
+    true
+  );
 }
 
 export async function chatVision(
@@ -39,7 +43,9 @@ export async function chatVision(
   if (!p.chatVision) {
     throw new Error(`Provider ${compat} does not support vision`);
   }
-  return p.chatVision({ apiKey: provider.apiKey, baseUrl: provider.baseUrl }, model, mediaData, mimeType, prompt);
+  return globalLimiter.run(
+    () => p.chatVision!({ apiKey: provider.apiKey, baseUrl: provider.baseUrl }, model, mediaData, mimeType, prompt)
+  );
 }
 
 export async function generateImage(
@@ -53,7 +59,9 @@ export async function generateImage(
   if (!p.generateImage) {
     throw new Error(`Provider ${compat} does not support image generation`);
   }
-  return p.generateImage({ apiKey: provider.apiKey, baseUrl: provider.baseUrl }, model, prompt);
+  return globalLimiter.run(
+    () => p.generateImage!({ apiKey: provider.apiKey, baseUrl: provider.baseUrl }, model, prompt)
+  );
 }
 
 export async function tts(
@@ -68,5 +76,7 @@ export async function tts(
   if (!p.tts) {
     throw new Error(`Provider ${compat} does not support TTS`);
   }
-  return p.tts({ apiKey: provider.apiKey, baseUrl: provider.baseUrl }, model, text, voice);
+  return globalLimiter.run(
+    () => p.tts!({ apiKey: provider.apiKey, baseUrl: provider.baseUrl }, model, text, voice)
+  );
 }
